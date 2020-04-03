@@ -3,7 +3,7 @@ import numpy as np
 from sklearn.decomposition import PCA
 
 class EigenFacesClassifier(IClassifier):
-    def __init__(n_components=1, distance=np.linalg.norm(a-b)):
+    def __init__(self, n_components=1, distance=lambda x, y: np.linalg.norm(x-y)):
         self._distance = distance
         
         self._n_components = n_components
@@ -24,7 +24,7 @@ class EigenFacesClassifier(IClassifier):
         return vectors
     
     
-    def _get_distance_matrix(vectors):
+    def _get_distance_matrix(self, vectors):
         distance_matrix = np.zeros((vectors.shape[0], self._data.shape[0]))
         for i in range(vectors.shape[0]):
             for j in range(self._data.shape[0]):
@@ -37,7 +37,8 @@ class EigenFacesClassifier(IClassifier):
         self._mean = np.mean(data, axis=0)
         for i in range(data.shape[0]):
             data[i] = data[i] - self._mean
-        self._cov = np.cov(data)
+        
+        self._cov = np.cov(data.T)
         
         self._pca.fit(self._cov)
         
@@ -46,13 +47,17 @@ class EigenFacesClassifier(IClassifier):
 
         
     def predict(self, X):
-        vectors = self._pca.transfrom(self._image_to_vector(X))
+        vectors = self._image_to_vector(X)
+        for i in range(vectors.shape[0]):
+            vectors[i] = vectors[i] - self._mean
+        vectors = self._pca.transform(vectors)
         distance_matrix = self._get_distance_matrix(vectors)
-        return self._labels(np.argmin(distance_matrix, axis=1))
+        predictions = [self._labels[i] for i in np.argmin(distance_matrix, axis=1)]
+        return predictions
         
     
     def predict_proba(self, X):
-        vectors = self._pca.transfrom(self._image_to_vector(X))
+        vectors = self._pca.transform(self._image_to_vector(X))
         distance_matrix = np.exp(self._get_distance_matrix(vectors) * -1)
         sums = np.sum(distance_matrix, axis=1)
         distance_matrix = distance_matrix / sums
