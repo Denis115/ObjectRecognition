@@ -19,6 +19,8 @@ class EigenFacesClassifier(IClassifier):
     
     
     def _image_to_vector(self, X):
+        # РОЗГОРТКА ЗОБРАЖЕННЯ У ВЕКТОР
+        
         vector_size = X.shape[1] * X.shape[2]
         vectors = np.zeros((X.shape[0], vector_size))
         for i in range(vectors.shape[0]):
@@ -27,6 +29,8 @@ class EigenFacesClassifier(IClassifier):
     
     
     def _get_distance_matrix(self, vectors):
+        # ОБЧИСЛЕННЯ МАТРИЦІ ВІДСТАНЕЙ
+        
         distance_matrix = np.zeros((vectors.shape[0], self._weights.shape[0]))
         for i in range(vectors.shape[0]):
             for j in range(self._weights.shape[0]):
@@ -35,34 +39,63 @@ class EigenFacesClassifier(IClassifier):
         
         
     def fit(self, X, Y):   
+        # ТРЕНУВАННЯ МОДЕЛІ
+        
+        # розгортка і видалення усередненого вектору
         data = self._image_to_vector(X)
         self._mean = np.mean(data, axis=0)
         for i in range(data.shape[0]):
             data[i] = data[i] - self._mean
         
-        self._cov = np.cov(data)
-        
+        # обчислення коваріаційної матриці та її власних векторів
+        self._cov = np.cov(data)    
         self._pca.fit(self._cov)
         
+        # проектування у новий простір
         self._data = self._pca.transform(data.T)
         self._labels = np.copy(Y)
         
+        # обчислення вагів
         self._weights = data @ self._data
 
 
     def predict(self, X):
+        # ПЕРЕДБАЧЕННЯ
+        
+        # розгортка і видалення усередненого вектору
         vectors = self._image_to_vector(X)
         for i in range(vectors.shape[0]):
             vectors[i] = vectors[i] - self._mean
+        
+        # обчислення вагів
         vectors = vectors @ self._data
+        
+        # обчислення матриці відстаней
         distance_matrix = self._get_distance_matrix(vectors)
+        
+        # пошук мінімальних відстаней
         predictions = [self._labels[i] for i in np.argmin(distance_matrix, axis=1)]
         return predictions
 
 
     def predict_proba(self, X):
-        vectors = self._pca.transform(self._image_to_vector(X))
-        distance_matrix = np.exp(self._get_distance_matrix(vectors) * -1)
+        # ПЕРЕДБАЧЕННЯ У ВИГЛЯДІ ЙМОВІРНОСТЕЙ
+        
+        # розгортка і видалення усередненого вектору
+        vectors = self._image_to_vector(X)
+        for i in range(vectors.shape[0]):
+            vectors[i] = vectors[i] - self._mean
+        
+        # обчислення вагів
+        vectors = vectors @ self._data
+        
+        # обчислення матриці відстаней
+        distance_matrix = self._get_distance_matrix(vectors)
+        
+        # перехід у інтервал [0;1] за допомогою softmax
+        distance_matrix = np.exp(distance_matrix * -1)
         sums = np.sum(distance_matrix, axis=1)
         distance_matrix = distance_matrix / sums
+        
+        # пошук максимальних ймовірностей
         return self._labels(np.argmax(distance_matrix, axis=1))
