@@ -14,6 +14,8 @@ class EigenFacesClassifier(IClassifier):
         
         self._data = None
         self._labels = None
+        
+        self._weights = None
     
     
     def _image_to_vector(self, X):
@@ -25,10 +27,10 @@ class EigenFacesClassifier(IClassifier):
     
     
     def _get_distance_matrix(self, vectors):
-        distance_matrix = np.zeros((vectors.shape[0], self._data.shape[0]))
+        distance_matrix = np.zeros((vectors.shape[0], self._weights.shape[0]))
         for i in range(vectors.shape[0]):
-            for j in range(self._data.shape[0]):
-                distance_matrix[i, j] = self._distance(vectors[i], self._data[j])
+            for j in range(self._weights.shape[0]):
+                distance_matrix[i, j] = self._distance(vectors[i], self._weights[j])
         return distance_matrix
         
         
@@ -38,24 +40,26 @@ class EigenFacesClassifier(IClassifier):
         for i in range(data.shape[0]):
             data[i] = data[i] - self._mean
         
-        self._cov = np.cov(data.T)
+        self._cov = np.cov(data)
         
         self._pca.fit(self._cov)
         
-        self._data = self._pca.transform(data)
+        self._data = self._pca.transform(data.T)
         self._labels = np.copy(Y)
-
         
+        self._weights = data @ self._data
+
+
     def predict(self, X):
         vectors = self._image_to_vector(X)
         for i in range(vectors.shape[0]):
             vectors[i] = vectors[i] - self._mean
-        vectors = self._pca.transform(vectors)
+        vectors = vectors @ self._data
         distance_matrix = self._get_distance_matrix(vectors)
         predictions = [self._labels[i] for i in np.argmin(distance_matrix, axis=1)]
         return predictions
-        
-    
+
+
     def predict_proba(self, X):
         vectors = self._pca.transform(self._image_to_vector(X))
         distance_matrix = np.exp(self._get_distance_matrix(vectors) * -1)
